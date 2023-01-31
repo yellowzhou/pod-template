@@ -4,11 +4,12 @@ require 'colored2'
 module Pod
   class TemplateConfigurator
 
-    attr_reader :pod_name, :pods_for_podfile, :prefixes, :test_example_file, :username, :email
+    attr_reader :pod_name, :source_pods_for_podfile, :pods_for_podfile, :prefixes, :test_example_file, :username, :email
 
     def initialize(pod_name)
       @pod_name = pod_name
       @pods_for_podfile = []
+      @source_pods_for_podfile = []
       @prefixes = []
       @message_bank = MessageBank.new(self)
     end
@@ -70,7 +71,14 @@ module Pod
     def run
       @message_bank.welcome_message
 
-      platform = self.ask_with_answers(" .. What platform do you want to use?", ["iOS", "macOS"]).to_sym
+      source = self.ask_with_answers("是否添加私有pod源?", ["Yes", "No"]).to_sym
+      if source == :yes
+          self.add_source_pod_to_podfile "source 'https://github.com/CocoaPods/Specs.git'"
+          self.add_source_pod_to_podfile "source 'https://cdn.cocoapods.org/'"
+      end
+
+
+      platform = self.ask_with_answers("What platform do you want to use?", ["iOS", "macOS"]).to_sym
 
       case platform
         when :macos
@@ -89,6 +97,7 @@ module Pod
       replace_variables_in_files
       clean_template_files
       rename_template_files
+      add_source_pods_to_podfile
       add_pods_to_podfile
       customise_prefix
       rename_classes_folder
@@ -135,6 +144,19 @@ module Pod
         text.gsub!("${DATE}", date)
         File.open(file_name, "w") { |file| file.puts text }
       end
+    end
+
+    def add_source_pod_to_podfile source
+      @source_pods_for_podfile << source
+    end
+
+    def add_source_pods_to_podfile
+      podfile = File.read podfile_path
+      podfile_content = @source_pods_for_podfile.map do |pod|
+        "pod '" + pod + "'"
+      end.join("\n    ")
+      podfile.gsub!("${INCLUDED_SOURCE_POD}", podfile_content)
+      File.open(podfile_path, "w") { |file| file.puts podfile }
     end
 
     def add_pod_to_podfile podname
